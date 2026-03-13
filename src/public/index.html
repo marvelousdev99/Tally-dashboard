@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<title>Due Payments — Tally Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:       #f5f7fb;
+    --surface:  #ffffff;
+    --surface2: #f1f3f8;
+    --border:   rgba(0,0,0,0.08);
+
+    --text:     #111827;
+    --muted:    #6b7280;
+
+    --green:    #16a34a;
+    --amber:    #d97706;
+    --orange:   #ea580c;
+    --red:      #dc2626;
+    --blue:     #2563eb;
+    --teal:     #0d9488;
+    --accent:   #4f46e5;
+
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: #f9fafb;
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 13px; font-weight: 500; color: #fff;
+  }
+  .logo-text { font-size: 15px; font-weight: 600; }
+  .logo-sub  { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 1px; }
+
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted);
+    transition: background .4s;
+  }
+  .status-dot.ok     { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.error  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+  #status-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  .btn {
+    padding: 7px 14px; border-radius: 7px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); cursor: pointer;
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover  { background: #5254c8; border-color: #5254c8; color: white;}
+  .btn:active { transform: scale(.98); }
+  .btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-accent:hover { background: #5254c8; border-color: #5254c8; }
+
+  /* ── Filters ── */
+  .filters {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+  .filter-label { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-right: 4px; }
+  .filter-group { display: flex; align-items: center; gap: 8px; }
+  input[type=date], input[type=text], select {
+    padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text);
+    font-family: var(--sans); font-size: 13px;
+    outline: none;
+  }
+  input[type=date]:focus, input[type=text]:focus, select:focus {
+    border-color: var(--accent);
+  }
+  input[type=text] { width: 200px; }
+
+  /* ── Main layout ── */
+  main { padding: 24px 28px; }
+
+  /* ── KPI Cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--kpi-color, var(--accent));
+    border-radius: 12px 12px 0 0;
+  }
+  .kpi-label { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+  .kpi-value { font-size: 26px; font-weight: 600; font-family: var(--mono); line-height: 1; }
+  .kpi-value.money::before { content: '₹'; font-size: 16px; color: var(--muted); margin-right: 2px; }
+  .kpi-sub   { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ── Charts row ── */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-title {
+    font-size: 12px; font-weight: 500; color: var(--muted);
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ── Aging summary bar ── */
+  .aging-bar-wrap { margin-bottom: 24px; }
+  .aging-bar-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .aging-bar-bg   { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+  .aging-bar-fill { height: 100%; border-radius: 4px; transition: width .6s cubic-bezier(.4,0,.2,1); }
+  .aging-bar-label{ font-size: 11px; color: var(--muted); width: 80px; font-family: var(--mono); }
+  .aging-bar-amt  { font-size: 11px; color: var(--text); width: 100px; text-align: right; font-family: var(--mono); }
+
+  /* ── Vendor Table ── */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .table-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+  }
+  .table-title { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  background: #f9fafb;
+  }
+  thead th:not(:first-child) { text-align: right; }
+  tbody tr { transition: background .12s; cursor: default; }
+  tbody tr:hover { background: #f3f4f6;  }
+  tbody td {
+    padding: 11px 16px; font-size: 13px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  tbody td:not(:first-child) { text-align: right; font-family: var(--mono); font-size: 12px; }
+  tbody tr:last-child td { border-bottom: none; }
+
+  .vendor-name  { font-weight: 500; max-width: 200px; }
+  .vendor-group { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 4px;
+    font-size: 10px; font-weight: 500; letter-spacing: 0.04em;
+  }
+  .badge-red    { background: rgba(239,68,68,0.15);  color: var(--red); }
+  .badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
+  .badge-amber  { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .badge-green  { background: rgba(34,197,94,0.15);  color: var(--green); }
+
+  .amount { color: var(--text); }
+  .amount-critical { color: var(--red); }
+  .amount-warn     { color: var(--orange); }
+  .amount-ok       { color: var(--muted); }
+
+  /* ── Top 10 bar list ── */
+  .top-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .top-item:last-child { border-bottom: none; }
+  .top-rank { font-size: 11px; color: var(--muted); font-family: var(--mono); width: 18px; flex-shrink: 0; }
+  .top-name { font-size: 13px; font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-bar-bg { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .top-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .6s; }
+  .top-amt { font-size: 12px; font-family: var(--mono); color: var(--text); flex-shrink: 0; }
+
+  /* ── Loader/Error ── */
+  .loader {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 300px; gap: 16px; color: var(--muted);
+  }
+  .spinner {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-box {
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 10px; padding: 20px 24px; color: var(--red);
+    font-size: 13px; line-height: 1.6;
+  }
+
+  .as-of { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .kpi-grid    { grid-template-columns: 1fr 1fr; }
+    .charts-row  { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    header, .filters, main { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── Header ─── -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">T</div>
+    <div>
+      <div class="logo-text">Due Payments</div>
+      <div class="logo-sub">Tally ERP Dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-label">connecting…</span>
+    <button class="btn btn-accent" onclick="loadData()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- ─── Filters ─── -->
+<div class="filters">
+  <span class="filter-label">From</span>
+  <div class="filter-group">
+    <input type="date" id="date-from" />
+  </div>
+
+  <span class="filter-label">To</span>
+  <div class="filter-group">
+    <input type="date" id="date-to" />
+  </div>
+
+  <!-- Quick range buttons -->
+  <div class="filter-group" style="margin-left:8px">
+    <button class="btn" onclick="setRange(30)">30 Days</button>
+    <button class="btn" onclick="setRange(45)">45 Days</button>
+    <button class="btn" onclick="setRange(60)">60 Days</button>
+    <button class="btn" onclick="setRange(90)">90 Days</button>
+  </div>
+
+  <span class="filter-label" style="margin-left:8px">Search</span>
+  <input type="text" id="search" placeholder="Vendor / party name…" oninput="filterTable()" />
+
+  <button class="btn" onclick="loadData()">Apply</button>
+
+  <span id="as-of" class="as-of"></span>
+</div>
+
+<!-- ─── Main ─── -->
+<main id="main-content">
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <span>Fetching from Tally…</span>
+  </div>
+</main>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let DATA = null;
+let agingChart = null, pieChart = null;
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(function init() {
+  const today  = new Date();
+  const fyFrom = today.getMonth() >= 3
+    ? `${today.getFullYear()}-04-01`
+    : `${today.getFullYear()-1}-04-01`;
+  document.getElementById('date-from').value = fyFrom;
+  document.getElementById('date-to').value   = today.toISOString().slice(0,10);
+  pingTally();
+  loadData();
+})();
+
+// ─── Ping ────────────────────────────────────────────────────────────────────
+async function pingTally() {
+  try {
+    const r = await fetch('/api/ping');
+    const d = await r.json();
+    const dot   = document.getElementById('status-dot');
+    const label = document.getElementById('status-label');
+    if (d.ok) {
+      dot.className   = 'status-dot ok';
+      label.textContent = 'Tally connected';
+    } else {
+      dot.className   = 'status-dot error';
+      label.textContent = 'Tally offline';
+    }
+  } catch {
+    document.getElementById('status-dot').className = 'status-dot error';
+    document.getElementById('status-label').textContent = 'Server error';
+  }
+}
+
+// ─── Load Data ───────────────────────────────────────────────────────────────
+async function loadData() {
+  const from = document.getElementById('date-from').value.replace(/-/g,'');
+  const to   = document.getElementById('date-to').value.replace(/-/g,'');
+
+  showLoader();
+  try {
+    const r = await fetch(`/api/due-payments?from=${from}&to=${to}`);
+    if (!r.ok) throw new Error(await r.text());
+    DATA = await r.json();
+    renderAll(DATA);
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+function setRange(days) {
+  const to = new Date();
+  const from = new Date();
+
+  from.setDate(to.getDate() - days);
+
+  const fmt = d => d.toISOString().slice(0,10);
+
+  document.getElementById('date-from').value = fmt(from);
+  document.getElementById('date-to').value = fmt(to);
+
+  loadData();
+}
+
+function showLoader() {
+  document.getElementById('main-content').innerHTML = `
+    <div class="loader">
+      <div class="spinner"></div>
+      <span>Fetching from Tally…</span>
+    </div>`;
+}
+
+function showError(msg) {
+  document.getElementById('main-content').innerHTML = `
+    <div class="error-box">
+      <strong>Could not fetch data</strong><br>${msg}<br><br>
+      Make sure Tally is open and the HTTP server is enabled on port 9000:<br>
+      Gateway of Tally → F12 → Advanced Config → Enable ODBC Server → Port 9000
+    </div>`;
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function renderAll(d) {
+  const fmtDate = s => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : '';
+  document.getElementById('as-of').textContent = `As of ${fmtDate(d.asOf)}`;
+
+  document.getElementById('main-content').innerHTML = `
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--kpi-color:var(--accent)">
+        <div class="kpi-label">Total Due</div>
+        <div class="kpi-value money">${fmt(d.grandTotal)}</div>
+        <div class="kpi-sub">Across all vendors</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--blue)">
+        <div class="kpi-label">Total Vendors</div>
+        <div class="kpi-value">${d.totalVendors}</div>
+        <div class="kpi-sub">With outstanding balance</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--orange)">
+        <div class="kpi-label">Overdue Vendors</div>
+        <div class="kpi-value">${d.overdueCount}</div>
+        <div class="kpi-sub">Payment past due date</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:var(--red)">
+        <div class="kpi-label">Critical (90+ days)</div>
+        <div class="kpi-value">${d.criticalCount}</div>
+        <div class="kpi-sub">Needs immediate action</div>
+      </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="charts-row">
+      <div class="card">
+        <div class="card-title">Aging Buckets — Amount Due</div>
+        <div class="chart-wrap"><canvas id="aging-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Aging Distribution</div>
+        <div class="chart-wrap"><canvas id="pie-chart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Aging bar summary -->
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-title">Aging Summary</div>
+      <div id="aging-bars"></div>
+    </div>
+
+    <!-- Top 10 -->
+    <div class="card" style="margin-bottom:24px">
+      <div class="card-title">Top 10 Vendors by Due Amount</div>
+      <div id="top10" style="padding:4px 0"></div>
+    </div>
+
+    <!-- Full table -->
+    <div class="table-card">
+      <div class="table-header">
+        <span class="table-title">All Vendors — Due Payments</span>
+        <button class="btn" onclick="exportCSV()">↓ Export CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Vendor / Party</th>
+              <th>Total Due</th>
+              <th>Current</th>
+              <th>0–30 d</th>
+              <th>30–60 d</th>
+              <th>60–90 d</th>
+              <th>90+ d</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="vendor-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  renderAgingBars(d.agingSummary, d.grandTotal);
+  renderTop10(d.vendors);
+  renderTable(d.vendors);
+  renderCharts(d);
+}
+
+// ─── Aging bars ───────────────────────────────────────────────────────────────
+function renderAgingBars(ag, total) {
+  const buckets = [
+    { label: 'Current',  key: 'current',   color: 'var(--green)' },
+    { label: '0–30 d',   key: 'days0_30',  color: 'var(--teal)' },
+    { label: '30–60 d',  key: 'days30_60', color: 'var(--amber)' },
+    { label: '60–90 d',  key: 'days60_90', color: 'var(--orange)' },
+    { label: '90+ d',    key: 'days90',    color: 'var(--red)' },
+  ];
+  const html = buckets.map(b => {
+    const amt = ag[b.key] || 0;
+    const pct = total > 0 ? (amt/total*100).toFixed(1) : 0;
+    return `
+      <div class="aging-bar-row">
+        <span class="aging-bar-label">${b.label}</span>
+        <div class="aging-bar-bg">
+          <div class="aging-bar-fill" style="width:${pct}%;background:${b.color}"></div>
+        </div>
+        <span class="aging-bar-amt">${fmt(amt)}</span>
+        <span style="font-size:11px;color:var(--muted);width:38px;text-align:right;font-family:var(--mono)">${pct}%</span>
+      </div>`;
+  }).join('');
+  document.getElementById('aging-bars').innerHTML = html;
+}
+
+// ─── Top 10 ───────────────────────────────────────────────────────────────────
+function renderTop10(vendors) {
+  const top = vendors.slice(0, 10);
+  const max = top[0]?.totalDue || 1;
+  const html = top.map((v, i) => `
+    <div class="top-item">
+      <span class="top-rank">${i+1}</span>
+      <span class="top-name">${esc(v.name)}</span>
+      <div class="top-bar-bg" style="max-width:220px">
+        <div class="top-bar-fill" style="width:${(v.totalDue/max*100).toFixed(1)}%"></div>
+      </div>
+      <span class="top-amt">₹${fmt(v.totalDue)}</span>
+    </div>`).join('');
+  document.getElementById('top10').innerHTML = html;
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+function renderTable(vendors) {
+  const q = (document.getElementById('search')?.value || '').toLowerCase();
+  const rows = vendors
+    .filter(v => !q || v.name.toLowerCase().includes(q) || v.group.toLowerCase().includes(q))
+    .map(v => {
+      const over90 = v.aging.days90 > 0;
+      const over60 = v.aging.days60_90 > 0;
+      const status = over90 ? '<span class="badge badge-red">Critical</span>'
+                   : over60 ? '<span class="badge badge-orange">Overdue</span>'
+                   : v.aging.days30_60 > 0 ? '<span class="badge badge-amber">Watch</span>'
+                   : '<span class="badge badge-green">Current</span>';
+      return `
+        <tr>
+          <td>
+            <div class="vendor-name">${esc(v.name)}</div>
+            <div class="vendor-group">${esc(v.group)}</div>
+          </td>
+          <td><strong>₹${fmt(v.totalDue)}</strong></td>
+          <td class="amount-ok">${v.aging.current > 0 ? '₹'+fmt(v.aging.current) : '—'}</td>
+          <td class="amount-ok">${v.aging.days0_30 > 0 ? '₹'+fmt(v.aging.days0_30) : '—'}</td>
+          <td class="amount-warn">${v.aging.days30_60 > 0 ? '₹'+fmt(v.aging.days30_60) : '—'}</td>
+          <td class="amount-warn">${v.aging.days60_90 > 0 ? '₹'+fmt(v.aging.days60_90) : '—'}</td>
+          <td class="amount-critical">${v.aging.days90 > 0 ? '₹'+fmt(v.aging.days90) : '—'}</td>
+          <td>${status}</td>
+        </tr>`;
+    }).join('');
+  document.getElementById('vendor-tbody').innerHTML = rows ||
+    '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No results</td></tr>';
+}
+
+function filterTable() { if (DATA) renderTable(DATA.vendors); }
+
+// ─── Charts ───────────────────────────────────────────────────────────────────
+function renderCharts(d) {
+  const ag = d.agingSummary;
+  const agColors = ['#22c55e','#14b8a6','#f59e0b','#f97316','#ef4444'];
+  const labels   = ['Current','0–30 d','30–60 d','60–90 d','90+ d'];
+  const values   = [ag.current, ag.days0_30, ag.days30_60, ag.days60_90, ag.days90];
+
+  const gridColor = 'rgba(0,0,0,0.08)';
+  const textColor = '#6b7280';
+
+  // Bar chart
+  const ctx1 = document.getElementById('aging-chart').getContext('2d');
+  if (agingChart) agingChart.destroy();
+  agingChart = new Chart(ctx1, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: agColors, borderRadius: 6, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
+        y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 }, callback: v => '₹'+fmtK(v) } },
+      }
+    }
+  });
+
+  // Pie chart
+  const ctx2 = document.getElementById('pie-chart').getContext('2d');
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: agColors, borderWidth: 2, borderColor: '#ffffff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { color: textColor, font: { size: 11 }, boxWidth: 12, padding: 12 }
+        }
+      }
+    }
+  });
+}
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!DATA) return;
+  const rows = [['Vendor','Group','Total Due','Current','0-30d','30-60d','60-90d','90+d']];
+  DATA.vendors.forEach(v => rows.push([
+    v.name, v.group, v.totalDue,
+    v.aging.current, v.aging.days0_30, v.aging.days30_60, v.aging.days60_90, v.aging.days90
+  ]));
+  const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a    = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'due-payments.csv' });
+  a.click();
+}
+
+// ─── Utils ───────────────────────────────────────────────────────────────────
+const fmt  = n => (Math.round(n)).toLocaleString('en-IN');
+const fmtK = n => n >= 1e5 ? (n/1e5).toFixed(1)+'L' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : Math.round(n);
+const esc  = s => String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+</script>
+</body>
+</html>
