@@ -1,623 +1,1498 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<title>Due Payments — Tally Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap');
-
-  :root {
-    --bg:       #f5f7fb;
-    --surface:  #ffffff;
-    --surface2: #f1f3f8;
-    --border:   rgba(0,0,0,0.08);
-
-    --text:     #111827;
-    --muted:    #6b7280;
-
-    --green:    #16a34a;
-    --amber:    #d97706;
-    --orange:   #ea580c;
-    --red:      #dc2626;
-    --blue:     #2563eb;
-    --teal:     #0d9488;
-    --accent:   #4f46e5;
-
-    --mono:     'IBM Plex Mono', monospace;
-    --sans:     'DM Sans', sans-serif;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    font-family: var(--sans);
-    background: #f9fafb;
-    color: var(--text);
-    min-height: 100vh;
-    font-size: 14px;
-  }
-
-  /* ── Header ── */
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 28px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    position: sticky; top: 0; z-index: 10;
-  }
-  .logo { display: flex; align-items: center; gap: 10px; }
-  .logo-mark {
-    width: 32px; height: 32px; border-radius: 8px;
-    background: var(--accent);
-    display: flex; align-items: center; justify-content: center;
-    font-family: var(--mono); font-size: 13px; font-weight: 500; color: #fff;
-  }
-  .logo-text { font-size: 15px; font-weight: 600; }
-  .logo-sub  { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 1px; }
-
-  .header-right { display: flex; align-items: center; gap: 12px; }
-
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--muted);
-    transition: background .4s;
-  }
-  .status-dot.ok     { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .status-dot.error  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
-  #status-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
-
-  .btn {
-    padding: 7px 14px; border-radius: 7px; border: 1px solid var(--border);
-    background: var(--surface2); color: var(--text); cursor: pointer;
-    font-family: var(--sans); font-size: 13px; font-weight: 500;
-    transition: background .15s, border-color .15s;
-  }
-  .btn:hover  { background: #5254c8; border-color: #5254c8; color: white;}
-  .btn:active { transform: scale(.98); }
-  .btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .btn-accent:hover { background: #5254c8; border-color: #5254c8; }
-
-  /* ── Filters ── */
-  .filters {
-    display: flex; align-items: center; gap: 12px;
-    padding: 14px 28px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-    flex-wrap: wrap;
-  }
-  .filter-label { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-right: 4px; }
-  .filter-group { display: flex; align-items: center; gap: 8px; }
-  input[type=date], input[type=text], select {
-    padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
-    background: var(--surface2); color: var(--text);
-    font-family: var(--sans); font-size: 13px;
-    outline: none;
-  }
-  input[type=date]:focus, input[type=text]:focus, select:focus {
-    border-color: var(--accent);
-  }
-  input[type=text] { width: 200px; }
-
-  /* ── Main layout ── */
-  main { padding: 24px 28px; }
-
-  /* ── KPI Cards ── */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-    margin-bottom: 24px;
-  }
-  .kpi-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px 20px;
-    position: relative;
-    overflow: hidden;
-  }
-  .kpi-card::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--kpi-color, var(--accent));
-    border-radius: 12px 12px 0 0;
-  }
-  .kpi-label { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
-  .kpi-value { font-size: 26px; font-weight: 600; font-family: var(--mono); line-height: 1; }
-  .kpi-value.money::before { content: '₹'; font-size: 16px; color: var(--muted); margin-right: 2px; }
-  .kpi-sub   { font-size: 11px; color: var(--muted); margin-top: 6px; }
-
-  /* ── Charts row ── */
-  .charts-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 24px;
-  }
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-  }
-  .card-title {
-    font-size: 12px; font-weight: 500; color: var(--muted);
-    letter-spacing: 0.08em; text-transform: uppercase;
-    margin-bottom: 16px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .chart-wrap { position: relative; height: 220px; }
-
-  /* ── Aging summary bar ── */
-  .aging-bar-wrap { margin-bottom: 24px; }
-  .aging-bar-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-  .aging-bar-bg   { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
-  .aging-bar-fill { height: 100%; border-radius: 4px; transition: width .6s cubic-bezier(.4,0,.2,1); }
-  .aging-bar-label{ font-size: 11px; color: var(--muted); width: 80px; font-family: var(--mono); }
-  .aging-bar-amt  { font-size: 11px; color: var(--text); width: 100px; text-align: right; font-family: var(--mono); }
-
-  /* ── Vendor Table ── */
-  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .table-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 20px; border-bottom: 1px solid var(--border);
-  }
-  .table-title { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
-
-  table { width: 100%; border-collapse: collapse; }
-  thead th {
-    text-align: left;
-  padding: 10px 16px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--border);
-  background: #f9fafb;
-  }
-  thead th:not(:first-child) { text-align: right; }
-  tbody tr { transition: background .12s; cursor: default; }
-  tbody tr:hover { background: #f3f4f6;  }
-  tbody td {
-    padding: 11px 16px; font-size: 13px;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
-  tbody td:not(:first-child) { text-align: right; font-family: var(--mono); font-size: 12px; }
-  tbody tr:last-child td { border-bottom: none; }
-
-  .vendor-name  { font-weight: 500; max-width: 200px; }
-  .vendor-group { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-  .badge {
-    display: inline-block; padding: 2px 7px; border-radius: 4px;
-    font-size: 10px; font-weight: 500; letter-spacing: 0.04em;
-  }
-  .badge-red    { background: rgba(239,68,68,0.15);  color: var(--red); }
-  .badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
-  .badge-amber  { background: rgba(245,158,11,0.15); color: var(--amber); }
-  .badge-green  { background: rgba(34,197,94,0.15);  color: var(--green); }
-
-  .amount { color: var(--text); }
-  .amount-critical { color: var(--red); }
-  .amount-warn     { color: var(--orange); }
-  .amount-ok       { color: var(--muted); }
-
-  /* ── Top 10 bar list ── */
-  .top-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-  }
-  .top-item:last-child { border-bottom: none; }
-  .top-rank { font-size: 11px; color: var(--muted); font-family: var(--mono); width: 18px; flex-shrink: 0; }
-  .top-name { font-size: 13px; font-weight: 500; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .top-bar-bg { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
-  .top-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .6s; }
-  .top-amt { font-size: 12px; font-family: var(--mono); color: var(--text); flex-shrink: 0; }
-
-  /* ── Loader/Error ── */
-  .loader {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    min-height: 300px; gap: 16px; color: var(--muted);
-  }
-  .spinner {
-    width: 36px; height: 36px; border-radius: 50%;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    animation: spin .8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .error-box {
-    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
-    border-radius: 10px; padding: 20px 24px; color: var(--red);
-    font-size: 13px; line-height: 1.6;
-  }
-
-  .as-of { font-size: 11px; color: var(--muted); font-family: var(--mono); }
-
-  /* ── Responsive ── */
-  @media (max-width: 900px) {
-    .kpi-grid    { grid-template-columns: 1fr 1fr; }
-    .charts-row  { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 560px) {
-    .kpi-grid { grid-template-columns: 1fr; }
-    header, .filters, main { padding-left: 16px; padding-right: 16px; }
-  }
-</style>
-</head>
-<body>
-
-<!-- ─── Header ─── -->
-<header>
-  <div class="logo">
-    <div class="logo-mark">T</div>
-    <div>
-      <div class="logo-text">Due Payments</div>
-      <div class="logo-sub">Tally ERP Dashboard</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <div class="status-dot" id="status-dot"></div>
-    <span id="status-label">connecting…</span>
-    <button class="btn btn-accent" onclick="loadData()">↻ Refresh</button>
-  </div>
-</header>
-
-<!-- ─── Filters ─── -->
-<div class="filters">
-  <span class="filter-label">From</span>
-  <div class="filter-group">
-    <input type="date" id="date-from" />
-  </div>
-
-  <span class="filter-label">To</span>
-  <div class="filter-group">
-    <input type="date" id="date-to" />
-  </div>
-
-  <!-- Quick range buttons -->
-  <div class="filter-group" style="margin-left:8px">
-    <button class="btn" onclick="setRange(30)">30 Days</button>
-    <button class="btn" onclick="setRange(45)">45 Days</button>
-    <button class="btn" onclick="setRange(60)">60 Days</button>
-    <button class="btn" onclick="setRange(90)">90 Days</button>
-  </div>
-
-  <span class="filter-label" style="margin-left:8px">Search</span>
-  <input type="text" id="search" placeholder="Vendor / party name…" oninput="filterTable()" />
-
-  <button class="btn" onclick="loadData()">Apply</button>
-
-  <span id="as-of" class="as-of"></span>
-</div>
-
-<!-- ─── Main ─── -->
-<main id="main-content">
-  <div class="loader" id="loader">
-    <div class="spinner"></div>
-    <span>Fetching from Tally…</span>
-  </div>
-</main>
-
-<script>
-// ─── State ───────────────────────────────────────────────────────────────────
-let DATA = null;
-let agingChart = null, pieChart = null;
-
-// ─── Init ────────────────────────────────────────────────────────────────────
-(function init() {
-  const today  = new Date();
-  const fyFrom = today.getMonth() >= 3
-    ? `${today.getFullYear()}-04-01`
-    : `${today.getFullYear()-1}-04-01`;
-  document.getElementById('date-from').value = fyFrom;
-  document.getElementById('date-to').value   = today.toISOString().slice(0,10);
-  pingTally();
-  loadData();
-})();
-
-// ─── Ping ────────────────────────────────────────────────────────────────────
-async function pingTally() {
-  try {
-    const r = await fetch('/api/ping');
-    const d = await r.json();
-    const dot   = document.getElementById('status-dot');
-    const label = document.getElementById('status-label');
-    if (d.ok) {
-      dot.className   = 'status-dot ok';
-      label.textContent = 'Tally connected';
-    } else {
-      dot.className   = 'status-dot error';
-      label.textContent = 'Tally offline';
-    }
-  } catch {
-    document.getElementById('status-dot').className = 'status-dot error';
-    document.getElementById('status-label').textContent = 'Server error';
-  }
-}
-
-// ─── Load Data ───────────────────────────────────────────────────────────────
-async function loadData() {
-  const from = document.getElementById('date-from').value.replace(/-/g,'');
-  const to   = document.getElementById('date-to').value.replace(/-/g,'');
-
-  showLoader();
-  try {
-    const r = await fetch(`/api/due-payments?from=${from}&to=${to}`);
-    if (!r.ok) throw new Error(await r.text());
-    DATA = await r.json();
-    renderAll(DATA);
-  } catch (err) {
-    showError(err.message);
-  }
-}
-
-function setRange(days) {
-  const to = new Date();
-  const from = new Date();
-
-  from.setDate(to.getDate() - days);
-
-  const fmt = d => d.toISOString().slice(0,10);
-
-  document.getElementById('date-from').value = fmt(from);
-  document.getElementById('date-to').value = fmt(to);
-
-  loadData();
-}
-
-function showLoader() {
-  document.getElementById('main-content').innerHTML = `
-    <div class="loader">
-      <div class="spinner"></div>
-      <span>Fetching from Tally…</span>
-    </div>`;
-}
-
-function showError(msg) {
-  document.getElementById('main-content').innerHTML = `
-    <div class="error-box">
-      <strong>Could not fetch data</strong><br>${msg}<br><br>
-      Make sure Tally is open and the HTTP server is enabled on port 9000:<br>
-      Gateway of Tally → F12 → Advanced Config → Enable ODBC Server → Port 9000
-    </div>`;
-}
-
-// ─── Render ───────────────────────────────────────────────────────────────────
-function renderAll(d) {
-  const fmtDate = s => s ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : '';
-  document.getElementById('as-of').textContent = `As of ${fmtDate(d.asOf)}`;
-
-  document.getElementById('main-content').innerHTML = `
-    <!-- KPIs -->
-    <div class="kpi-grid">
-      <div class="kpi-card" style="--kpi-color:var(--accent)">
-        <div class="kpi-label">Total Due</div>
-        <div class="kpi-value money">${fmt(d.grandTotal)}</div>
-        <div class="kpi-sub">Across all vendors</div>
-      </div>
-      <div class="kpi-card" style="--kpi-color:var(--blue)">
-        <div class="kpi-label">Total Vendors</div>
-        <div class="kpi-value">${d.totalVendors}</div>
-        <div class="kpi-sub">With outstanding balance</div>
-      </div>
-      <div class="kpi-card" style="--kpi-color:var(--orange)">
-        <div class="kpi-label">Overdue Vendors</div>
-        <div class="kpi-value">${d.overdueCount}</div>
-        <div class="kpi-sub">Payment past due date</div>
-      </div>
-      <div class="kpi-card" style="--kpi-color:var(--red)">
-        <div class="kpi-label">Critical (90+ days)</div>
-        <div class="kpi-value">${d.criticalCount}</div>
-        <div class="kpi-sub">Needs immediate action</div>
-      </div>
-    </div>
-
-    <!-- Charts row -->
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-title">Aging Buckets — Amount Due</div>
-        <div class="chart-wrap"><canvas id="aging-chart"></canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Aging Distribution</div>
-        <div class="chart-wrap"><canvas id="pie-chart"></canvas></div>
-      </div>
-    </div>
-
-    <!-- Aging bar summary -->
-    <div class="card" style="margin-bottom:24px">
-      <div class="card-title">Aging Summary</div>
-      <div id="aging-bars"></div>
-    </div>
-
-    <!-- Top 10 -->
-    <div class="card" style="margin-bottom:24px">
-      <div class="card-title">Top 10 Vendors by Due Amount</div>
-      <div id="top10" style="padding:4px 0"></div>
-    </div>
-
-    <!-- Full table -->
-    <div class="table-card">
-      <div class="table-header">
-        <span class="table-title">All Vendors — Due Payments</span>
-        <button class="btn" onclick="exportCSV()">↓ Export CSV</button>
-      </div>
-      <div style="overflow-x:auto">
-        <table>
-          <thead>
-            <tr>
-              <th>Vendor / Party</th>
-              <th>Total Due</th>
-              <th>Current</th>
-              <th>0–30 d</th>
-              <th>30–60 d</th>
-              <th>60–90 d</th>
-              <th>90+ d</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="vendor-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  renderAgingBars(d.agingSummary, d.grandTotal);
-  renderTop10(d.vendors);
-  renderTable(d.vendors);
-  renderCharts(d);
-}
-
-// ─── Aging bars ───────────────────────────────────────────────────────────────
-function renderAgingBars(ag, total) {
-  const buckets = [
-    { label: 'Current',  key: 'current',   color: 'var(--green)' },
-    { label: '0–30 d',   key: 'days0_30',  color: 'var(--teal)' },
-    { label: '30–60 d',  key: 'days30_60', color: 'var(--amber)' },
-    { label: '60–90 d',  key: 'days60_90', color: 'var(--orange)' },
-    { label: '90+ d',    key: 'days90',    color: 'var(--red)' },
-  ];
-  const html = buckets.map(b => {
-    const amt = ag[b.key] || 0;
-    const pct = total > 0 ? (amt/total*100).toFixed(1) : 0;
-    return `
-      <div class="aging-bar-row">
-        <span class="aging-bar-label">${b.label}</span>
-        <div class="aging-bar-bg">
-          <div class="aging-bar-fill" style="width:${pct}%;background:${b.color}"></div>
-        </div>
-        <span class="aging-bar-amt">${fmt(amt)}</span>
-        <span style="font-size:11px;color:var(--muted);width:38px;text-align:right;font-family:var(--mono)">${pct}%</span>
-      </div>`;
-  }).join('');
-  document.getElementById('aging-bars').innerHTML = html;
-}
-
-// ─── Top 10 ───────────────────────────────────────────────────────────────────
-function renderTop10(vendors) {
-  const top = vendors.slice(0, 10);
-  const max = top[0]?.totalDue || 1;
-  const html = top.map((v, i) => `
-    <div class="top-item">
-      <span class="top-rank">${i+1}</span>
-      <span class="top-name">${esc(v.name)}</span>
-      <div class="top-bar-bg" style="max-width:220px">
-        <div class="top-bar-fill" style="width:${(v.totalDue/max*100).toFixed(1)}%"></div>
-      </div>
-      <span class="top-amt">₹${fmt(v.totalDue)}</span>
-    </div>`).join('');
-  document.getElementById('top10').innerHTML = html;
-}
-
-// ─── Table ────────────────────────────────────────────────────────────────────
-function renderTable(vendors) {
-  const q = (document.getElementById('search')?.value || '').toLowerCase();
-  const rows = vendors
-    .filter(v => !q || v.name.toLowerCase().includes(q) || v.group.toLowerCase().includes(q))
-    .map(v => {
-      const over90 = v.aging.days90 > 0;
-      const over60 = v.aging.days60_90 > 0;
-      const status = over90 ? '<span class="badge badge-red">Critical</span>'
-                   : over60 ? '<span class="badge badge-orange">Overdue</span>'
-                   : v.aging.days30_60 > 0 ? '<span class="badge badge-amber">Watch</span>'
-                   : '<span class="badge badge-green">Current</span>';
-      return `
-        <tr>
-          <td>
-            <div class="vendor-name">${esc(v.name)}</div>
-            <div class="vendor-group">${esc(v.group)}</div>
-          </td>
-          <td><strong>₹${fmt(v.totalDue)}</strong></td>
-          <td class="amount-ok">${v.aging.current > 0 ? '₹'+fmt(v.aging.current) : '—'}</td>
-          <td class="amount-ok">${v.aging.days0_30 > 0 ? '₹'+fmt(v.aging.days0_30) : '—'}</td>
-          <td class="amount-warn">${v.aging.days30_60 > 0 ? '₹'+fmt(v.aging.days30_60) : '—'}</td>
-          <td class="amount-warn">${v.aging.days60_90 > 0 ? '₹'+fmt(v.aging.days60_90) : '—'}</td>
-          <td class="amount-critical">${v.aging.days90 > 0 ? '₹'+fmt(v.aging.days90) : '—'}</td>
-          <td>${status}</td>
-        </tr>`;
-    }).join('');
-  document.getElementById('vendor-tbody').innerHTML = rows ||
-    '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">No results</td></tr>';
-}
-
-function filterTable() { if (DATA) renderTable(DATA.vendors); }
-
-// ─── Charts ───────────────────────────────────────────────────────────────────
-function renderCharts(d) {
-  const ag = d.agingSummary;
-  const agColors = ['#22c55e','#14b8a6','#f59e0b','#f97316','#ef4444'];
-  const labels   = ['Current','0–30 d','30–60 d','60–90 d','90+ d'];
-  const values   = [ag.current, ag.days0_30, ag.days30_60, ag.days60_90, ag.days90];
-
-  const gridColor = 'rgba(0,0,0,0.08)';
-  const textColor = '#6b7280';
-
-  // Bar chart
-  const ctx1 = document.getElementById('aging-chart').getContext('2d');
-  if (agingChart) agingChart.destroy();
-  agingChart = new Chart(ctx1, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{ data: values, backgroundColor: agColors, borderRadius: 6, borderSkipped: false }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
-        y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 }, callback: v => '₹'+fmtK(v) } },
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Due Payments — Tally Prime</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+      :root {
+        --bg: #f0f2f7;
+        --surface: #ffffff;
+        --surface2: #f7f8fc;
+        --border: rgba(0, 0, 0, 0.07);
+        --border2: rgba(0, 0, 0, 0.12);
+        --text: #0d1117;
+        --muted: #6e7787;
+        --accent: #2e5bff;
+        --accent-bg: #eef1ff;
+        --green: #0f9d58;
+        --green-bg: #e6f4ee;
+        --amber: #c77700;
+        --amber-bg: #fff8e6;
+        --orange: #d44e00;
+        --orange-bg: #fff1ea;
+        --red: #c5222b;
+        --red-bg: #fde9ea;
+        --mono: "IBM Plex Mono", monospace;
+        --sans: "DM Sans", sans-serif;
+        --radius: 10px;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
       }
-    }
-  });
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        font-size: 16px;
+        -webkit-font-smoothing: antialiased;
+      }
+      ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 99px;
+      }
 
-  // Pie chart
-  const ctx2 = document.getElementById('pie-chart').getContext('2d');
-  if (pieChart) pieChart.destroy();
-  pieChart = new Chart(ctx2, {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data: values, backgroundColor: agColors, borderWidth: 2, borderColor: '#ffffff' }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: 'right',
-          labels: { color: textColor, font: { size: 11 }, boxWidth: 12, padding: 12 }
+      /* ── HEADER ── */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 24px;
+        height: 54px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: inherit;
+      }
+      .logo-mark {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        flex-shrink: 0;
+      }
+      .logo-name {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .logo-sub {
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .hdr-center {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+      }
+      .company-pill {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        background: var(--accent-bg);
+        border: 1px solid rgba(46, 91, 255, 0.18);
+        border-radius: 99px;
+        padding: 4px 12px 4px 8px;
+        font-size: 11px;
+        color: var(--accent);
+        font-family: var(--mono);
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .company-pill.on {
+        display: flex;
+      }
+      .pip {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        flex-shrink: 0;
+        animation: pip 2s ease-in-out infinite;
+      }
+      @keyframes pip {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
         }
       }
-    }
-  });
-}
+      .hdr-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+      .conn {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border2);
+        transition: all 0.3s;
+      }
+      .conn.ok {
+        color: var(--green);
+        border-color: rgba(15, 157, 88, 0.2);
+        background: var(--green-bg);
+      }
+      .conn.error {
+        color: var(--red);
+        border-color: rgba(197, 34, 43, 0.2);
+        background: var(--red-bg);
+      }
+      .cdot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+      }
 
-// ─── Export CSV ───────────────────────────────────────────────────────────────
-function exportCSV() {
-  if (!DATA) return;
-  const rows = [['Vendor','Group','Total Due','Current','0-30d','30-60d','60-90d','90+d']];
-  DATA.vendors.forEach(v => rows.push([
-    v.name, v.group, v.totalDue,
-    v.aging.current, v.aging.days0_30, v.aging.days30_60, v.aging.days60_90, v.aging.days90
-  ]));
-  const csv  = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const a    = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'due-payments.csv' });
-  a.click();
-}
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        border-radius: 7px;
+        border: 1px solid var(--border2);
+        background: var(--surface2);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+        white-space: nowrap;
+        text-decoration: none;
+        user-select: none;
+      }
+      .btn:hover {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn:disabled:hover {
+        background: var(--surface2);
+        border-color: var(--border2);
+        color: var(--text);
+        transform: none;
+      }
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #1a47e8;
+        border-color: #1a47e8;
+      }
+      .btn-ghost {
+        border-color: transparent;
+        background: transparent;
+        color: var(--muted);
+      }
+      .btn-ghost:hover {
+        background: var(--surface2);
+        border-color: var(--border2);
+        color: var(--text);
+      }
 
-// ─── Utils ───────────────────────────────────────────────────────────────────
-const fmt  = n => (Math.round(n)).toLocaleString('en-IN');
-const fmtK = n => n >= 1e5 ? (n/1e5).toFixed(1)+'L' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : Math.round(n);
-const esc  = s => String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;');
-</script>
-</body>
+      /* ── FILTER BAR ── */
+      .filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 24px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-wrap: wrap;
+        position: sticky;
+        top: 54px;
+        z-index: 90;
+      }
+      .flabel {
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+        white-space: nowrap;
+      }
+      input[type="date"],
+      input[type="text"] {
+        padding: 5px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border2);
+        background: var(--surface2);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.15s;
+        height: 30px;
+      }
+      input[type="date"]:focus,
+      input[type="text"]:focus {
+        border-color: var(--accent);
+      }
+      input[type="text"]::placeholder {
+        color: var(--muted);
+      }
+      .fsep {
+        width: 1px;
+        height: 20px;
+        background: var(--border2);
+        flex-shrink: 0;
+      }
+      .rbtn {
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border2);
+        background: var(--surface2);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .rbtn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--accent-bg);
+      }
+      .rbtn.active {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .as-of {
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+        white-space: nowrap;
+        margin-left: auto;
+      }
+
+      /* ── MAIN ── */
+      main {
+        padding: 20px 24px 48px;
+      }
+
+      .notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.5;
+        margin-bottom: 14px;
+      }
+      .nicon {
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      .notice.info {
+        background: var(--accent-bg);
+        border: 1px solid rgba(46, 91, 255, 0.15);
+        color: #1e3a8a;
+      }
+      .notice.warn {
+        background: var(--amber-bg);
+        border: 1px solid rgba(199, 119, 0, 0.2);
+        color: #78350f;
+      }
+      .notice.success {
+        background: var(--green-bg);
+        border: 1px solid rgba(15, 157, 88, 0.2);
+        color: #14532d;
+      }
+      .notice a {
+        color: inherit;
+        font-weight: 600;
+      }
+
+      /* ── KPIs ── */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .kpi {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
+      }
+      .kpi:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+      }
+      .kpi-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        border-radius: var(--radius) var(--radius) 0 0;
+      }
+      .kpi-lbl {
+        font-size: 10px;
+        color: var(--muted);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        font-weight: 500;
+      }
+      .kpi-val {
+        font-size: 28px;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        font-family: var(--mono);
+      }
+      .kpi-hint {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+
+      /* ── Cards & charts ── */
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        box-shadow: var(--shadow);
+      }
+      .card-hd {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .chart-wrap {
+        position: relative;
+        height: 200px;
+      }
+
+      /* ── Aging bars ── */
+      .arow {
+        display: grid;
+        grid-template-columns: 72px 1fr 96px 38px;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+      .albl {
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+      .atrack {
+        height: 6px;
+        background: var(--bg);
+        border-radius: 99px;
+        overflow: hidden;
+      }
+      .afill {
+        height: 100%;
+        border-radius: 99px;
+        transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .aamt {
+        font-size: 11px;
+        font-family: var(--mono);
+        text-align: right;
+      }
+      .apct {
+        font-size: 10px;
+        color: var(--muted);
+        font-family: var(--mono);
+        text-align: right;
+      }
+
+      /* ── Top 10 ── */
+      .trow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 6px 7px 4px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        border-radius: 5px;
+        transition: background 0.1s;
+      }
+      .trow:last-child {
+        border-bottom: none;
+      }
+      .trow:hover {
+        background: var(--surface2);
+      }
+      .trow:hover .tname {
+        color: var(--accent);
+      }
+      .trank {
+        font-size: 10px;
+        color: var(--muted);
+        font-family: var(--mono);
+        width: 16px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+      .tname {
+        font-size: 12px;
+        font-weight: 600;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        transition: color 0.15s;
+      }
+      .ttrack {
+        width: 90px;
+        height: 4px;
+        background: var(--bg);
+        border-radius: 99px;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .tfill {
+        height: 100%;
+        border-radius: 99px;
+        background: var(--accent);
+        transition: width 0.7s;
+      }
+      .tamt {
+        font-size: 11px;
+        font-family: var(--mono);
+        min-width: 88px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+
+      /* ── Table ── */
+      .tbl-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+      .tbl-hdr {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--border);
+        gap: 10px;
+      }
+      .tbl-title {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .tbl-wrap {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 700px;
+      }
+      thead th {
+        padding: 8px 14px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface2);
+        text-align: left;
+        white-space: nowrap;
+      }
+      thead th:not(:first-child) {
+        text-align: right;
+      }
+      thead th.srt {
+        cursor: pointer;
+        user-select: none;
+      }
+      thead th.srt:hover {
+        color: var(--accent);
+      }
+      thead th.srt-asc::after {
+        content: " ↑";
+        color: var(--accent);
+      }
+      thead th.srt-desc::after {
+        content: " ↓";
+        color: var(--accent);
+      }
+      tbody tr {
+        transition: background 0.1s;
+        cursor: default;
+      }
+      tbody tr:hover {
+        background: #f4f6ff;
+      }
+      tbody tr.sel {
+        background: var(--accent-bg);
+      }
+      tbody tr.sel td:first-child {
+        border-left: 2px solid var(--accent);
+        padding-left: 12px;
+      }
+      tbody td {
+        padding: 12px 14px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      tbody td:not(:first-child) {
+        text-align: right;
+        font-family: var(--mono);
+      }
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+      .vname {
+        font-weight: 600;
+        font-size: 15px;
+      }
+      .vgroup {
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      .badge::before {
+        content: "";
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .b-red {
+        background: var(--red-bg);
+        color: var(--red);
+        border: 1px solid rgba(197, 34, 43, 0.15);
+      }
+      .b-orange {
+        background: var(--orange-bg);
+        color: var(--orange);
+        border: 1px solid rgba(212, 78, 0, 0.15);
+      }
+      .b-amber {
+        background: var(--amber-bg);
+        color: var(--amber);
+        border: 1px solid rgba(199, 119, 0, 0.15);
+      }
+      .b-green {
+        background: var(--green-bg);
+        color: var(--green);
+        border: 1px solid rgba(15, 157, 88, 0.15);
+      }
+      .b-gray {
+        background: var(--surface2);
+        color: var(--muted);
+        border: 1px solid var(--border2);
+      }
+
+      .c-red {
+        color: var(--red);
+        font-weight: 500;
+      }
+      .c-orange {
+        color: var(--orange);
+        font-weight: 500;
+      }
+      .c-amber {
+        color: var(--amber);
+      }
+      .c-muted {
+        color: var(--muted);
+      }
+
+      /* ── Pagination ── */
+      .pgn {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 18px;
+        border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .pgn-info {
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+      .pgn-btns {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .pgn-btn {
+        padding: 3px 9px;
+        border-radius: 5px;
+        border: 1px solid var(--border2);
+        background: var(--surface2);
+        color: var(--text);
+        font-size: 11px;
+        font-family: var(--mono);
+        cursor: pointer;
+        transition: all 0.12s;
+      }
+      .pgn-btn:hover:not(:disabled) {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .pgn-btn.cur {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+      .pgn-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+
+      /* ── Loader / Error ── */
+      .loader {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 260px;
+        gap: 14px;
+        color: var(--muted);
+      }
+      .spin {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 2px solid var(--border2);
+        border-top-color: var(--accent);
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .err-box {
+        background: var(--red-bg);
+        border: 1px solid rgba(197, 34, 43, 0.2);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        color: var(--red);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .err-box code {
+        background: rgba(197, 34, 43, 0.08);
+        padding: 2px 5px;
+        border-radius: 4px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      @media (max-width: 960px) {
+        .kpi-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 560px) {
+        .kpi-grid {
+          grid-template-columns: 1fr;
+        }
+        header,
+        .filter-bar,
+        main {
+          padding-left: 14px;
+          padding-right: 14px;
+        }
+        .hdr-center {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- HEADER -->
+    <header>
+      <div class="logo">
+        <div class="logo-mark">T</div>
+        <div>
+          <div class="logo-name">Due Payments</div>
+          <div class="logo-sub">Tally Prime</div>
+        </div>
+      </div>
+      <div class="hdr-center">
+        <div class="company-pill" id="company-pill">
+          <div class="pip"></div>
+          <span id="company-name">—</span>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="conn" id="conn">
+          <div class="cdot"></div>
+          <span id="conn-lbl">connecting</span>
+        </div>
+        <a href="/api/debug" target="_blank" class="btn btn-ghost">⚙ Debug</a>
+        <button class="btn btn-primary" id="btn-refresh" onclick="loadData()">
+          ↻ Refresh
+        </button>
+      </div>
+    </header>
+
+    <!-- FILTER BAR -->
+    <div class="filter-bar">
+      <span class="flabel">From</span>
+      <input type="date" id="date-from" onchange="clearRangeBtns()" />
+      <span class="flabel">To</span>
+      <input type="date" id="date-to" onchange="clearRangeBtns()" />
+      <div class="fsep"></div>
+      <button class="rbtn" onclick="setRange(30, this)">30d</button>
+      <button class="rbtn" onclick="setRange(60, this)">60d</button>
+      <button class="rbtn" onclick="setRange(90, this)">90d</button>
+      <button class="rbtn" onclick="setFY(this)">This FY</button>
+      <div class="fsep"></div>
+      <input
+        type="text"
+        id="search"
+        placeholder="Search vendor…"
+        oninput="onSearch(this.value)"
+        style="width: 170px"
+      />
+      <button class="btn btn-primary" onclick="loadData()">Apply</button>
+      <span class="as-of" id="as-of"></span>
+    </div>
+
+    <!-- MAIN -->
+    <main id="main">
+      <div class="loader">
+        <div class="spin"></div>
+        <span>Connecting to Tally Prime…</span>
+      </div>
+    </main>
+
+    <script>
+      let DATA = null,
+        filtered = [],
+        sortKey = "totalDue",
+        sortDir = "desc";
+      let curPage = 1;
+      const PER_PAGE = 20;
+      let selVendor = null,
+        chartAging = null,
+        chartPie = null;
+
+      // ── INIT ──
+      (function () {
+        setFY(document.querySelectorAll(".rbtn")[3]);
+        pingTally();
+        loadData();
+        setInterval(() => {
+          if (document.visibilityState === "visible") loadData(true);
+        }, 300000);
+      })();
+
+      // ── DATE HELPERS ──
+      function setFY(btn) {
+        const t = new Date();
+        const f =
+          t.getMonth() >= 3
+            ? `${t.getFullYear()}-04-01`
+            : `${t.getFullYear() - 1}-04-01`;
+        document.getElementById("date-from").value = f;
+        document.getElementById("date-to").value = t.toISOString().slice(0, 10);
+        activateRangeBtn(btn);
+      }
+      function setRange(days, btn) {
+        const t = new Date(),
+          f = new Date();
+        f.setDate(t.getDate() - days);
+        document.getElementById("date-from").value = f
+          .toISOString()
+          .slice(0, 10);
+        document.getElementById("date-to").value = t.toISOString().slice(0, 10);
+        activateRangeBtn(btn);
+        loadData();
+      }
+      function clearRangeBtns() {
+        document
+          .querySelectorAll(".rbtn")
+          .forEach((b) => b.classList.remove("active"));
+      }
+      function activateRangeBtn(btn) {
+        clearRangeBtns();
+        if (btn) btn.classList.add("active");
+      }
+      function fmtDate(s) {
+        return s ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : "";
+      }
+
+      // ── PING ──
+      async function pingTally() {
+        const el = document.getElementById("conn");
+        const lbl = document.getElementById("conn-lbl");
+        const pill = document.getElementById("company-pill");
+        const cname = document.getElementById("company-name");
+        try {
+          const d = await fetch("/api/ping").then((r) => r.json());
+          if (d.ok) {
+            el.className = "conn ok";
+            lbl.textContent = "connected";
+            const a = d.active || d.companies?.[0]?.name || "";
+            if (a) {
+              cname.textContent = a;
+              pill.classList.add("on");
+            }
+          } else {
+            el.className = "conn error";
+            lbl.textContent = "offline";
+          }
+        } catch {
+          el.className = "conn error";
+          lbl.textContent = "error";
+        }
+      }
+
+      // ── LOAD ──
+      async function loadData(silent = false) {
+        const from = (document.getElementById("date-from").value || "").replace(
+          /-/g,
+          "",
+        );
+        const to = (document.getElementById("date-to").value || "").replace(
+          /-/g,
+          "",
+        );
+        if (!from || !to) return;
+
+        const btn = document.getElementById("btn-refresh");
+        btn.disabled = true;
+        btn.textContent = "…";
+        if (!silent) showLoader();
+
+        try {
+          const r = await fetch(`/api/due-payments?from=${from}&to=${to}`);
+          if (!r.ok) throw new Error(await r.text());
+          DATA = await r.json();
+          curPage = 1;
+          selVendor = null;
+          renderAll(DATA);
+          pingTally();
+        } catch (e) {
+          showError(e.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "↻ Refresh";
+        }
+      }
+
+      function showLoader() {
+        document.getElementById("main").innerHTML =
+          `<div class="loader"><div class="spin"></div><span>Fetching from Tally Prime…</span></div>`;
+      }
+
+      function showError(msg) {
+        document.getElementById("main").innerHTML = `
+          <div class="err-box">
+            <strong>❌ Could not fetch data from Tally Prime</strong><br><br>
+            <strong>Error:</strong> <code>${esc(msg)}</code><br><br>
+            <strong>Common fixes:</strong><br>
+            1. Ensure Tally Prime is open and the company is loaded<br>
+            2. Enable HTTP server in Tally: <em>Help → TDL & Add-On → Enable HTTP Server</em> on port <strong>9000</strong><br>
+            3. Check Tally is not in <em>Education Mode</em><br>
+            4. <a href="/api/debug" target="_blank">Open /api/debug</a> to inspect raw Tally XML responses
+          </div>`;
+      }
+
+      // ── RENDER ALL ──
+      function renderAll(d) {
+        document.getElementById("as-of").textContent =
+          `as of ${fmtDate(d.asOf)}`;
+
+        const fallbackWarn = d.usedFallback
+          ? `
+          <div class="notice warn">
+            <span class="nicon">⚠</span>
+            <span><strong>Bill Outstanding data not available</strong> — using ledger closing balances as fallback.
+            Aging may be inaccurate. Vendors marked "(estimated)" use closing balance only.
+            Check <a href="/api/debug" target="_blank">/api/debug</a> to inspect raw Tally response.</span>
+          </div>`
+          : `
+          <div class="notice success">
+            <span class="nicon">✅</span>
+            <span>Bill-level outstanding data loaded successfully — aging buckets are accurate.</span>
+          </div>`;
+
+        document.getElementById("main").innerHTML = `
+          <div class="notice info">
+            <span class="nicon">📂</span>
+            <span><strong>${esc(d.company || "Tally Company")}</strong> &nbsp;·&nbsp;
+            ${fmtDate(d.from)} → ${fmtDate(d.asOf)} &nbsp;·&nbsp;
+            ${d.totalVendors} vendors with outstanding balance</span>
+          </div>
+          ${fallbackWarn}
+          <div class="kpi-grid" id="kpis"></div>
+          <div class="two-col">
+            <div class="card"><div class="card-hd">Aging Buckets</div><div class="chart-wrap"><canvas id="cAging"></canvas></div></div>
+            <div class="card"><div class="card-hd">Distribution</div><div class="chart-wrap"><canvas id="cPie"></canvas></div></div>
+          </div>
+          <div class="two-col">
+            <div class="card"><div class="card-hd">Aging Summary</div><div id="aging-bars"></div></div>
+            <div class="card"><div class="card-hd">Top 10 by Due Amount <span style="font-size:10px;color:var(--muted)">(click to highlight)</span></div><div id="top10"></div></div>
+          </div>
+          <div class="tbl-card">
+            <div class="tbl-hdr">
+              <span class="tbl-title">All Vendors</span>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="tbl-search" placeholder="Filter vendors…" style="width:150px;height:28px" oninput="onSearch(this.value)"/>
+                <button class="btn" onclick="exportCSV()">↓ CSV</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th class="srt" onclick="doSort('name')">Vendor</th>
+                  <th class="srt" onclick="doSort('totalDue')">Total Due</th>
+                  <th>Current</th>
+                  <th>0–30 d</th>
+                  <th>30–60 d</th>
+                  <th>60–90 d</th>
+                  <th>90+ d</th>
+                  <th>Status</th>
+                </tr></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+            <div class="pgn" id="pgn"></div>
+          </div>`;
+
+        buildKPIs(d);
+        buildAgingBars(d.agingSummary, d.grandTotal);
+        buildTop10(d.vendors);
+        buildCharts(d);
+        applySort();
+      }
+
+      // ── KPIs ──
+      function buildKPIs(d) {
+        const items = [
+          {
+            lbl: "Total Due",
+            val: "₹" + fmt(d.grandTotal),
+            hint: "all vendors combined",
+            color: "#2e5bff",
+          },
+          {
+            lbl: "Vendors",
+            val: d.totalVendors,
+            hint: "with outstanding balance",
+            color: "#0891b2",
+          },
+          {
+            lbl: "Overdue",
+            val: d.overdueCount || 0,
+            hint: "payment past 30 days",
+            color: "#d44e00",
+          },
+          {
+            lbl: "Critical 90+",
+            val: d.criticalCount || 0,
+            hint: "needs immediate action",
+            color: "#c5222b",
+          },
+        ];
+        document.getElementById("kpis").innerHTML = items
+          .map(
+            (c) => `
+          <div class="kpi">
+            <div class="kpi-bar" style="background:${c.color}"></div>
+            <div class="kpi-lbl">${c.lbl}</div>
+            <div class="kpi-val" style="color:${c.color}">${c.val}</div>
+            <div class="kpi-hint">${c.hint}</div>
+          </div>`,
+          )
+          .join("");
+      }
+
+      // ── AGING BARS ──
+      function buildAgingBars(ag, total) {
+        const rows = [
+          { lbl: "Current", key: "current", color: "#0f9d58" },
+          { lbl: "0–30 d", key: "days0_30", color: "#0891b2" },
+          { lbl: "30–60 d", key: "days30_60", color: "#c77700" },
+          { lbl: "60–90 d", key: "days60_90", color: "#d44e00" },
+          { lbl: "90+ d", key: "days90", color: "#c5222b" },
+        ];
+        document.getElementById("aging-bars").innerHTML = rows
+          .map((r) => {
+            const a = ag[r.key] || 0;
+            const pct = total > 0 ? ((a / total) * 100).toFixed(1) : 0;
+            return `<div class="arow">
+            <span class="albl">${r.lbl}</span>
+            <div class="atrack"><div class="afill" style="width:${pct}%;background:${r.color}"></div></div>
+            <span class="aamt" style="color:${r.color}">₹${fmt(a)}</span>
+            <span class="apct">${pct}%</span>
+          </div>`;
+          })
+          .join("");
+      }
+
+      // ── TOP 10 ──
+      function buildTop10(vendors) {
+        const top = vendors.slice(0, 10);
+        const max = top[0]?.totalDue || 1;
+        document.getElementById("top10").innerHTML = top
+          .map(
+            (v, i) => `
+          <div class="trow" onclick="jumpToVendor(${JSON.stringify(v.name)})">
+            <span class="trank">${i + 1}</span>
+            <span class="tname">${esc(v.name)}</span>
+            <div class="ttrack"><div class="tfill" style="width:${((v.totalDue / max) * 100).toFixed(1)}%"></div></div>
+            <span class="tamt">₹${fmt(v.totalDue)}</span>
+          </div>`,
+          )
+          .join("");
+      }
+
+      // ── TABLE ──
+      function onSearch(val) {
+        const a = document.getElementById("search");
+        const b = document.getElementById("tbl-search");
+        if (document.activeElement === a && b) b.value = val;
+        if (document.activeElement === b && a) a.value = val;
+        curPage = 1;
+        applySort();
+      }
+
+      function doSort(key) {
+        sortDir =
+          sortKey === key
+            ? sortDir === "asc"
+              ? "desc"
+              : "asc"
+            : key === "name"
+              ? "asc"
+              : "desc";
+        sortKey = key;
+        curPage = 1;
+        applySort();
+        updateSortHeaders();
+      }
+
+      function updateSortHeaders() {
+        document
+          .querySelectorAll("thead th.srt")
+          .forEach((th) => th.classList.remove("srt-asc", "srt-desc"));
+        const ths = document.querySelectorAll("thead th.srt");
+        const idx = sortKey === "name" ? 0 : 1;
+        if (ths[idx])
+          ths[idx].classList.add(sortDir === "asc" ? "srt-asc" : "srt-desc");
+      }
+
+      function applySort() {
+        if (!DATA) return;
+        const q = (
+          document.getElementById("tbl-search")?.value ||
+          document.getElementById("search")?.value ||
+          ""
+        )
+          .toLowerCase()
+          .trim();
+        filtered = DATA.vendors
+          .filter(
+            (v) =>
+              !q ||
+              v.name.toLowerCase().includes(q) ||
+              (v.group || "").toLowerCase().includes(q),
+          )
+          .sort((a, b) => {
+            const va =
+              sortKey === "name" ? a.name.toLowerCase() : a[sortKey] || 0;
+            const vb =
+              sortKey === "name" ? b.name.toLowerCase() : b[sortKey] || 0;
+            return sortDir === "asc"
+              ? va < vb
+                ? -1
+                : va > vb
+                  ? 1
+                  : 0
+              : vb < va
+                ? -1
+                : vb > va
+                  ? 1
+                  : 0;
+          });
+        renderTable();
+        renderPgn();
+      }
+
+      function renderTable() {
+        const start = (curPage - 1) * PER_PAGE;
+        const rows = filtered
+          .slice(start, start + PER_PAGE)
+          .map((v) => {
+            const isSel = selVendor === v.name;
+            const over90 = v.aging.days90 > 0;
+            const over60 = v.aging.days60_90 > 0;
+            const over30 = v.aging.days30_60 > 0;
+            const isEstimated = (v.group || "").includes("estimated");
+            const status = over90
+              ? '<span class="badge b-red">Critical</span>'
+              : over60
+                ? '<span class="badge b-orange">Overdue</span>'
+                : over30
+                  ? '<span class="badge b-amber">Watch</span>'
+                  : isEstimated
+                    ? '<span class="badge b-gray">Estimated</span>'
+                    : '<span class="badge b-green">Current</span>';
+            return `<tr class="${isSel ? "sel" : ""}" onclick="toggleSel(this,${JSON.stringify(v.name)})">
+            <td><div class="vname">${esc(v.name)}</div><div class="vgroup">${esc(v.group || "")}</div></td>
+            <td><strong>₹${fmt(v.totalDue)}</strong></td>
+            <td class="c-muted">${v.aging.current > 0 ? "₹" + fmt(v.aging.current) : "—"}</td>
+            <td class="c-muted">${v.aging.days0_30 > 0 ? "₹" + fmt(v.aging.days0_30) : "—"}</td>
+            <td class="${over30 || over60 || over90 ? "c-amber" : "c-muted"}">${v.aging.days30_60 > 0 ? "₹" + fmt(v.aging.days30_60) : "—"}</td>
+            <td class="${over60 || over90 ? "c-orange" : "c-muted"}">${v.aging.days60_90 > 0 ? "₹" + fmt(v.aging.days60_90) : "—"}</td>
+            <td class="${over90 ? "c-red" : "c-muted"}">${v.aging.days90 > 0 ? "₹" + fmt(v.aging.days90) : "—"}</td>
+            <td>${status}</td>
+          </tr>`;
+          })
+          .join("");
+        document.getElementById("tbody").innerHTML =
+          rows ||
+          `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">No vendors found</td></tr>`;
+        updateSortHeaders();
+      }
+
+      function renderPgn() {
+        const total = filtered.length;
+        const pages = Math.ceil(total / PER_PAGE);
+        const s = (curPage - 1) * PER_PAGE + 1,
+          e = Math.min(curPage * PER_PAGE, total);
+        const el = document.getElementById("pgn");
+        if (!el || total === 0) {
+          if (el) el.innerHTML = "";
+          return;
+        }
+        let btns = "";
+        for (let p = 1; p <= pages; p++) {
+          if (p === 1 || p === pages || (p >= curPage - 2 && p <= curPage + 2))
+            btns += `<button class="pgn-btn${p === curPage ? " cur" : ""}" onclick="gotoPage(${p})">${p}</button>`;
+          else if (p === curPage - 3 || p === curPage + 3)
+            btns += `<span style="color:var(--muted);font-size:11px;padding:0 2px">…</span>`;
+        }
+        el.innerHTML = `
+          <span class="pgn-info">${s}–${e} of ${total} vendors</span>
+          <div class="pgn-btns">
+            <button class="pgn-btn" onclick="gotoPage(${curPage - 1})" ${curPage <= 1 ? "disabled" : ""}>←</button>
+            ${btns}
+            <button class="pgn-btn" onclick="gotoPage(${curPage + 1})" ${curPage >= pages ? "disabled" : ""}>→</button>
+          </div>`;
+      }
+
+      function gotoPage(p) {
+        const pages = Math.ceil(filtered.length / PER_PAGE);
+        if (p < 1 || p > pages) return;
+        curPage = p;
+        renderTable();
+        renderPgn();
+        document
+          .querySelector(".tbl-card")
+          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function toggleSel(tr, name) {
+        if (selVendor === name) {
+          selVendor = null;
+          document
+            .querySelectorAll("tbody tr.sel")
+            .forEach((r) => r.classList.remove("sel"));
+        } else {
+          selVendor = name;
+          document
+            .querySelectorAll("tbody tr.sel")
+            .forEach((r) => r.classList.remove("sel"));
+          tr.classList.add("sel");
+        }
+      }
+
+      function jumpToVendor(name) {
+        const s = document.getElementById("search");
+        const t = document.getElementById("tbl-search");
+        if (s) s.value = "";
+        if (t) t.value = "";
+        filtered = DATA.vendors.slice().sort((a, b) => {
+          const va =
+            sortKey === "name" ? a.name.toLowerCase() : a[sortKey] || 0;
+          const vb =
+            sortKey === "name" ? b.name.toLowerCase() : b[sortKey] || 0;
+          return sortDir === "asc"
+            ? va < vb
+              ? -1
+              : va > vb
+                ? 1
+                : 0
+            : vb < va
+              ? -1
+              : vb > va
+                ? 1
+                : 0;
+        });
+        const idx = filtered.findIndex((v) => v.name === name);
+        if (idx === -1) return;
+        curPage = Math.ceil((idx + 1) / PER_PAGE);
+        selVendor = name;
+        renderTable();
+        renderPgn();
+        requestAnimationFrame(() => {
+          document
+            .querySelector(".tbl-card")
+            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+
+      // ── CHARTS ──
+      function buildCharts(d) {
+        const ag = d.agingSummary;
+        const labels = ["Current", "0–30 d", "30–60 d", "60–90 d", "90+ d"];
+        const values = [
+          ag.current,
+          ag.days0_30,
+          ag.days30_60,
+          ag.days60_90,
+          ag.days90,
+        ];
+        const colors = ["#0f9d58", "#0891b2", "#c77700", "#d44e00", "#c5222b"];
+        const tc = "#6e7787",
+          tf = { family: "'IBM Plex Mono',monospace", size: 10 };
+
+        const ctx1 = document.getElementById("cAging")?.getContext("2d");
+        if (ctx1) {
+          if (chartAging) chartAging.destroy();
+          chartAging = new Chart(ctx1, {
+            type: "bar",
+            data: {
+              labels,
+              datasets: [
+                {
+                  data: values,
+                  backgroundColor: colors,
+                  borderRadius: 5,
+                  borderSkipped: false,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: { label: (c) => " ₹" + fmt(c.parsed.y) },
+                },
+              },
+              scales: {
+                x: { grid: { display: false }, ticks: { color: tc, font: tf } },
+                y: {
+                  grid: { color: "rgba(0,0,0,.05)" },
+                  border: { display: false },
+                  ticks: {
+                    color: tc,
+                    font: tf,
+                    callback: (v) => "₹" + fmtK(v),
+                  },
+                },
+              },
+            },
+          });
+        }
+
+        const ctx2 = document.getElementById("cPie")?.getContext("2d");
+        if (ctx2) {
+          if (chartPie) chartPie.destroy();
+          chartPie = new Chart(ctx2, {
+            type: "doughnut",
+            data: {
+              labels,
+              datasets: [
+                {
+                  data: values,
+                  backgroundColor: colors,
+                  borderWidth: 2,
+                  borderColor: "#fff",
+                  hoverOffset: 6,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: "58%",
+              plugins: {
+                legend: {
+                  position: "right",
+                  labels: { color: tc, font: tf, boxWidth: 10, padding: 10 },
+                },
+                tooltip: {
+                  callbacks: {
+                    label: (c) =>
+                      ` ₹${fmt(c.raw)} (${((c.raw / (d.grandTotal || 1)) * 100).toFixed(1)}%)`,
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      // ── EXPORT CSV ──
+      function exportCSV() {
+        if (!DATA) return;
+        const header = [
+          "Vendor",
+          "Group",
+          "Total Due",
+          "Current",
+          "0-30d",
+          "30-60d",
+          "60-90d",
+          "90+d",
+          "Status",
+        ];
+        const rows = filtered.map((v) => {
+          const s =
+            v.aging.days90 > 0
+              ? "Critical"
+              : v.aging.days60_90 > 0
+                ? "Overdue"
+                : v.aging.days30_60 > 0
+                  ? "Watch"
+                  : "Current";
+          return [
+            v.name,
+            v.group || "",
+            v.totalDue,
+            v.aging.current,
+            v.aging.days0_30,
+            v.aging.days30_60,
+            v.aging.days60_90,
+            v.aging.days90,
+            s,
+          ];
+        });
+        const csv = [header, ...rows]
+          .map((r) =>
+            r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","),
+          )
+          .join("\n");
+        const blob = new Blob(["\uFEFF" + csv], {
+          type: "text/csv;charset=utf-8",
+        });
+        const a = Object.assign(document.createElement("a"), {
+          href: URL.createObjectURL(blob),
+          download: `due-payments-${DATA.asOf || "export"}.csv`,
+        });
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+
+      // ── UTILS ──
+      const fmt = (n) => Math.round(n || 0).toLocaleString("en-IN");
+      const fmtK = (n) =>
+        n >= 1e7
+          ? (n / 1e7).toFixed(1) + "Cr"
+          : n >= 1e5
+            ? (n / 1e5).toFixed(1) + "L"
+            : n >= 1e3
+              ? (n / 1e3).toFixed(0) + "K"
+              : Math.round(n);
+      const esc = (s) =>
+        String(s || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+    </script>
+  </body>
 </html>
